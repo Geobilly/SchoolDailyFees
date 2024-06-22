@@ -1,9 +1,7 @@
 from flask import Flask, request, jsonify
 import mysql.connector
 from flask_cors import CORS
-
 from mysql.connector import Error
-from datetime import datetime, timedelta
 
 app = Flask(__name__)
 CORS(app)
@@ -44,6 +42,34 @@ def get_student_id(name, student_class):
             cursor.close()
             connection.close()
 
+# Function to retrieve current balance for a student
+def get_current_balance(name, student_class):
+    try:
+        connection = mysql.connector.connect(**db_config)
+        cursor = connection.cursor(dictionary=True)
+
+        select_query = """
+            SELECT SUM(amount) as total_amount
+            FROM feeding_fees
+            WHERE name = %s AND class = %s
+        """
+        cursor.execute(select_query, (name, student_class))
+        result = cursor.fetchone()
+
+        if result:
+            return result['total_amount'] if result['total_amount'] is not None else 0
+        else:
+            return 0
+
+    except Error as e:
+        print(f"Error retrieving current balance: {e}")
+        return 0
+
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
 # Endpoint to insert data into the feeding_fees table with a fixed debit value of -8.00
 @app.route('/add_fixed_debit', methods=['POST'])
 def add_fixed_debit():
@@ -61,6 +87,11 @@ def add_fixed_debit():
     student_id = get_student_id(name, student_class)
     if student_id is None:
         return jsonify({"error": "Student not found"}), 404
+
+    # Get current balance for the student
+    current_balance = get_current_balance(name, student_class)
+    if current_balance < 8:
+        return jsonify({"error": "Not enough balance"}), 400
 
     try:
         connection = mysql.connector.connect(**db_config)
@@ -80,14 +111,7 @@ def add_fixed_debit():
             last_id = cursor.lastrowid
 
             # Calculate the new balance for this student
-            select_query = """
-                SELECT SUM(amount) as total_amount
-                FROM feeding_fees
-                WHERE name = %s AND class = %s
-            """
-            cursor.execute(select_query, (name, student_class))
-            result = cursor.fetchone()
-            total_amount = result['total_amount'] if result else 0
+            total_amount = current_balance + amount
 
             # Update the balance column for this row
             update_query = """

@@ -19,17 +19,18 @@ def add_student():
     data = request.json
     name = data.get('Name')
     student_class = data.get('class')
+    gender = data.get('gender')
 
-    if not name or not student_class:
-        return jsonify({"error": "Name and class are required"}), 400
+    if not name or not student_class or not gender:
+        return jsonify({"error": "Name, class, and gender are required"}), 400
 
     try:
         connection = mysql.connector.connect(**db_config)
 
         if connection.is_connected():
             cursor = connection.cursor()
-            query = "INSERT INTO student (Name, class) VALUES (%s, %s)"
-            cursor.execute(query, (name, student_class))
+            query = "INSERT INTO student (Name, class, gender) VALUES (%s, %s, %s)"
+            cursor.execute(query, (name, student_class, gender))
             connection.commit()
             return jsonify({"message": "Student added successfully"}), 201
     except Error as e:

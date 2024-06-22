@@ -18,16 +18,11 @@ db_config = {
 @app.route('/add_fee', methods=['POST'])
 def add_fee():
     data = request.json
-    name = data.get('name')
-    student_class = data.get('class')
-    amount = data.get('amount')
-    status = data.get('status')
 
-    if not name or not student_class or not amount or not status:
-        return jsonify({"error": "Name, class, amount, and status are required"}), 400
+    if not isinstance(data, list):
+        data = [data]
 
-    if status != 'credit':
-        return jsonify({"error": "Invalid status. Must be 'credit'"}), 400
+    responses = []
 
     try:
         connection = mysql.connector.connect(**db_config)
@@ -35,51 +30,66 @@ def add_fee():
         if connection.is_connected():
             cursor = connection.cursor(dictionary=True)
 
-            # Retrieve student_id from the student table
-            select_student_query = """
-                SELECT stu_id
-                FROM student
-                WHERE name = %s AND class = %s
-            """
-            cursor.execute(select_student_query, (name, student_class))
-            student = cursor.fetchone()
+            for entry in data:
+                name = entry.get('name')
+                student_class = entry.get('class')
+                amount = entry.get('amount')
+                status = entry.get('status')
 
-            if not student:
-                return jsonify({"error": "Student not found"}), 404
+                if not name or not student_class or not amount or not status:
+                    responses.append({"error": "Name, class, amount, and status are required"})
+                    continue
 
-            student_id = student['stu_id']
+                if status != 'credit':
+                    responses.append({"error": "Invalid status. Must be 'credit'"})
+                    continue
 
-            # Insert new data
-            insert_query = """
-                INSERT INTO feeding_fees (student_id, name, class, amount, status)
-                VALUES (%s, %s, %s, %s, %s)
-            """
-            cursor.execute(insert_query, (student_id, name, student_class, amount, status))
-            connection.commit()
+                # Retrieve student_id from the student table
+                select_student_query = """
+                    SELECT stu_id
+                    FROM student
+                    WHERE name = %s AND class = %s
+                """
+                cursor.execute(select_student_query, (name, student_class))
+                student = cursor.fetchone()
 
-            # Get the last inserted ID
-            last_id = cursor.lastrowid
+                if not student:
+                    responses.append({"error": f"Student not found for {name} in class {student_class}"})
+                    continue
 
-            # Calculate the new balance for this student
-            select_query = """
-                SELECT SUM(amount) as total_amount
-                FROM feeding_fees
-                WHERE student_id = %s
-            """
-            cursor.execute(select_query, (student_id,))
-            result = cursor.fetchone()
-            total_amount = result['total_amount'] if result else 0
+                student_id = student['stu_id']
 
-            # Update the balance column for this row
-            update_query = """
-                UPDATE feeding_fees
-                SET balance = %s
-                WHERE id = %s
-            """
-            cursor.execute(update_query, (total_amount, last_id))
-            connection.commit()
+                # Insert new data
+                insert_query = """
+                    INSERT INTO feeding_fees (student_id, name, class, amount, status)
+                    VALUES (%s, %s, %s, %s, %s)
+                """
+                cursor.execute(insert_query, (student_id, name, student_class, amount, status))
+                connection.commit()
 
-            return jsonify({"message": "Fee added and balance updated successfully"}), 201
+                # Get the last inserted ID
+                last_id = cursor.lastrowid
+
+                # Calculate the new balance for this student
+                select_query = """
+                    SELECT SUM(amount) as total_amount
+                    FROM feeding_fees
+                    WHERE student_id = %s
+                """
+                cursor.execute(select_query, (student_id,))
+                result = cursor.fetchone()
+                total_amount = result['total_amount'] if result else 0
+
+                # Update the balance column for this row
+                update_query = """
+                    UPDATE feeding_fees
+                    SET balance = %s
+                    WHERE id = %s
+                """
+                cursor.execute(update_query, (total_amount, last_id))
+                connection.commit()
+
+                responses.append({"message": f"Fee added and balance updated successfully for {name}"})
 
     except Error as e:
         return jsonify({"error": str(e)}), 500
@@ -88,6 +98,8 @@ def add_fee():
         if connection.is_connected():
             cursor.close()
             connection.close()
+
+    return jsonify(responses), 201
 
 if __name__ == '__main__':
     app.run(debug=True)
