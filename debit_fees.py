@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import mysql.connector
 from flask_cors import CORS
 from mysql.connector import Error
+from decimal import Decimal
 
 app = Flask(__name__)
 CORS(app)
@@ -57,13 +58,13 @@ def get_current_balance(name, student_class):
         result = cursor.fetchone()
 
         if result:
-            return result['total_amount'] if result['total_amount'] is not None else 0
+            return Decimal(result['total_amount']) if result['total_amount'] is not None else Decimal('0.00')
         else:
-            return 0
+            return Decimal('0.00')
 
     except Error as e:
         print(f"Error retrieving current balance: {e}")
-        return 0
+        return Decimal('0.00')
 
     finally:
         if connection.is_connected():
@@ -80,7 +81,7 @@ def add_fixed_debit():
     if not name or not student_class:
         return jsonify({"error": "Name and class are required"}), 400
 
-    amount = -8.00
+    amount = Decimal('-8.00')
     status = 'debit'
 
     # Get student_id based on name and class
@@ -90,7 +91,7 @@ def add_fixed_debit():
 
     # Get current balance for the student
     current_balance = get_current_balance(name, student_class)
-    if current_balance < 8:
+    if current_balance < Decimal('8.00'):
         return jsonify({"error": "Not enough balance"}), 400
 
     try:
