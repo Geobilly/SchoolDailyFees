@@ -2,9 +2,14 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import mysql.connector
 from mysql.connector import Error
+import jwt
+import datetime
 
 app = Flask(__name__)
 CORS(app)
+
+# Secret key for encoding the JWT token
+app.config['SECRET_KEY'] = 'your_secret_key'
 
 # MySQL database configuration
 db_config = {
@@ -34,7 +39,14 @@ def authenticate_user():
             user = cursor.fetchone()
 
             if user:
-                return jsonify({"username": user['username'], "role": user['role']})
+                # Generate JWT token
+                token = jwt.encode({
+                    'username': user['username'],
+                    'role': user['role'],
+                    'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)  # Token expiration time
+                }, app.config['SECRET_KEY'], algorithm='HS256')
+
+                return jsonify({"username": user['username'], "role": user['role'], "token": token})
             else:
                 return jsonify({"error": "Invalid username or password"}), 401
     except Error as e:

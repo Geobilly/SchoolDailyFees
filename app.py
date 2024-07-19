@@ -13,6 +13,7 @@ from fetch_financial import fetch_financial
 
 
 
+
 app = Flask(__name__)
 CORS(app)  # Add this line to enable CORS for all routes
 
