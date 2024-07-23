@@ -12,24 +12,31 @@ db_config = {
     'database': 'u652725315_dialyfees'
 }
 
-def generate_student_id():
+def get_db_connection():
     try:
         connection = mysql.connector.connect(**db_config)
         if connection.is_connected():
+            return connection
+    except Error as e:
+        print(f"Database connection error: {e}")
+        return None
+
+def generate_student_id():
+    try:
+        connection = get_db_connection()
+        if connection:
             cursor = connection.cursor()
             query = "SELECT MAX(CAST(SUBSTRING(stu_id, 5) AS UNSIGNED)) FROM student WHERE stu_id LIKE 'KGA-%'"
             cursor.execute(query)
             result = cursor.fetchone()
             max_id = result[0] if result[0] else 0
             new_id = f'KGA-{max_id + 1:03d}'
-            return new_id
-    except Error as e:
-        print(f"Error: {e}")
-        return None
-    finally:
-        if connection.is_connected():
             cursor.close()
             connection.close()
+            return new_id
+    except Error as e:
+        print(f"Error generating student ID: {e}")
+        return None
 
 @app.route('/add_student', methods=['POST'])
 def add_student():
@@ -46,19 +53,37 @@ def add_student():
         return jsonify({"error": "Failed to generate student ID"}), 500
 
     try:
-        connection = mysql.connector.connect(**db_config)
-        if connection.is_connected():
+        connection = get_db_connection()
+        if connection:
             cursor = connection.cursor()
             query = "INSERT INTO student (stu_id, Name, class, gender) VALUES (%s, %s, %s, %s)"
             cursor.execute(query, (stu_id, name, student_class, gender))
             connection.commit()
+            cursor.close()
+            connection.close()
             return jsonify({"message": "Student added successfully", "stu_id": stu_id}), 201
     except Error as e:
         return jsonify({"error": str(e)}), 500
-    finally:
-        if connection.is_connected():
+
+@app.route('/delete_student/<string:stu_id>', methods=['DELETE'])
+def delete_student(stu_id):
+    try:
+        connection = get_db_connection()
+        if connection:
+            cursor = connection.cursor()
+            sql = "DELETE FROM student WHERE stu_id = %s"
+            cursor.execute(sql, (stu_id,))
+            connection.commit()
+
+            if cursor.rowcount == 0:
+                return jsonify({'message': 'No student found with the provided ID'}), 404
+
             cursor.close()
             connection.close()
+            return jsonify({'message': f'Student with ID {stu_id} deleted successfully'}), 200
+
+    except Error as err:
+        return jsonify({'error': str(err)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
