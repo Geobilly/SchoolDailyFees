@@ -1,105 +1,75 @@
 from flask import Flask, request, jsonify
 import mysql.connector
 from mysql.connector import Error
-from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)
 
-# MySQL database configuration
+# Configure your MySQL connection
 db_config = {
-    'host': 'srv1241.hstgr.io',
-    'user': 'u652725315_dailyfeesuser',
-    'password': 'Basic@1998',
-    'database': 'u652725315_dialyfees'
+    'user': 'your_user',
+    'password': 'your_password',
+    'host': 'your_host',
+    'database': 'your_database'
 }
 
-# Endpoint to insert data into the feeding_fees table
-@app.route('/add_fee', methods=['POST'])
-def add_fee():
-    data = request.json
-
-    if not isinstance(data, list):
-        data = [data]
-
-    responses = []
-
+@app.route('/update_amount', methods=['POST'])
+def update_amount():
     try:
+        # Connect to the database
         connection = mysql.connector.connect(**db_config)
-
         if connection.is_connected():
-            cursor = connection.cursor(dictionary=True)
+            cursor = connection.cursor()
 
-            for entry in data:
-                name = entry.get('name')
-                student_class = entry.get('class')
-                amount = entry.get('amount')
-                status = entry.get('status')
+            # Get the data from the request
+            data = request.json
+            student_id = data['student_id']
+            transaction_id = data['transaction_id']
+            new_amount = float(data['new_amount'])
+            reason = data['reason']
 
-                if not name or not student_class or not amount or not status:
-                    responses.append({"error": "Name, class, amount, and status are required"})
-                    continue
+            # Fetch the current amount and balance
+            cursor.execute("SELECT amount, balance FROM feeding_fees WHERE id = %s", (transaction_id,))
+            record = cursor.fetchone()
 
-                if status != 'credit':
-                    responses.append({"error": "Invalid status. Must be 'credit'"})
-                    continue
+            if record:
+                old_amount, old_balance = record
 
-                # Retrieve student_id from the student table
-                select_student_query = """
-                    SELECT stu_id
-                    FROM student
-                    WHERE name = %s AND class = %s
-                """
-                cursor.execute(select_student_query, (name, student_class))
-                student = cursor.fetchone()
+                # Calculate the new balance
+                new_balance = old_balance - (new_amount - old_amount)
 
-                if not student:
-                    responses.append({"error": f"Student not found for {name} in class {student_class}"})
-                    continue
-
-                student_id = student['stu_id']
-
-                # Insert new data
-                insert_query = """
-                    INSERT INTO feeding_fees (student_id, name, class, amount, status)
-                    VALUES (%s, %s, %s, %s, %s)
-                """
-                cursor.execute(insert_query, (student_id, name, student_class, amount, status))
-                connection.commit()
-
-                # Get the last inserted ID
-                last_id = cursor.lastrowid
-
-                # Calculate the new balance for this student
-                select_query = """
-                    SELECT SUM(amount) as total_amount
-                    FROM feeding_fees
-                    WHERE student_id = %s
-                """
-                cursor.execute(select_query, (student_id,))
-                result = cursor.fetchone()
-                total_amount = result['total_amount'] if result else 0
-
-                # Update the balance column for this row
+                # Update the amount and balance in feeding_fees
                 update_query = """
-                    UPDATE feeding_fees
-                    SET balance = %s
-                    WHERE id = %s
+                UPDATE feeding_fees
+                SET amount = %s, balance = %s
+                WHERE id = %s
                 """
-                cursor.execute(update_query, (total_amount, last_id))
+                cursor.execute(update_query, (new_amount, new_balance, transaction_id))
+
+                # Insert the log into editlogss
+                log_query = """
+                INSERT INTO editlogss (stu_id, name, class, old_amount, new_amount, reason, timestamp)
+                SELECT student_id, name, class, %s, %s, %s, NOW()
+                FROM feeding_fees
+                WHERE id = %s
+                """
+                cursor.execute(log_query, (old_amount, new_amount, reason, transaction_id))
+
+                # Commit the changes
                 connection.commit()
 
-                responses.append({"message": f"Fee added and balance updated successfully for {name}"})
+                response = {'status': 'success', 'message': 'Amount and balance updated successfully'}
+            else:
+                response = {'status': 'error', 'message': 'Transaction ID not found'}
 
     except Error as e:
-        return jsonify({"error": str(e)}), 500
+        response = {'status': 'error', 'message': str(e)}
 
     finally:
         if connection.is_connected():
             cursor.close()
             connection.close()
 
-    return jsonify(responses), 201
+    return jsonify(response)
 
 if __name__ == '__main__':
     app.run(debug=True)
