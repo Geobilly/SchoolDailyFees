@@ -30,7 +30,7 @@ app.route('/students', methods=['GET'])(get_students)
 app.route('/fetch-financial', methods=['POST'])(fetch_financial)
 app.route('/delete_student/<string:stu_id>', methods=['DELETE'])(delete_student)
 app.route('/deleted_transactions', methods=['GET'])(get_deleted_transactions)
-app.route('/delete_transaction', methods=['GET'])(delete_transaction)
+app.route('/delete_transaction', methods=['POST'])(delete_transaction)
 
 
 
