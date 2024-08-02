@@ -12,6 +12,8 @@ from fetch_financial import fetch_financial
 from deletestudent import delete_student
 from FetchDeletedTransactions import get_deleted_transactions
 from DeleteTransaction import delete_transaction
+from addImage import upload_image
+
 
 
 
@@ -31,6 +33,8 @@ app.route('/fetch-financial', methods=['POST'])(fetch_financial)
 app.route('/delete_student/<string:stu_id>', methods=['DELETE'])(delete_student)
 app.route('/deleted_transactions', methods=['GET'])(get_deleted_transactions)
 app.route('/delete_transaction', methods=['POST'])(delete_transaction)
+app.route('/upload_image', methods=['POST'])(upload_image)
+
 
 
 
