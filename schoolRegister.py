@@ -65,13 +65,19 @@ def add_school():
     # Hash the password for security
     hashed_password = generate_password_hash(password)
 
-    # Generate school ID
-    school_id = generate_school_id(name)
-
     try:
         # Connect to the database
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor()
+
+        # Check if the email is unique
+        cursor.execute("SELECT * FROM schools WHERE email = %s", (email,))
+        existing_school = cursor.fetchone()
+        if existing_school:
+            return jsonify({"error": "Email is already in use"}), 400
+
+        # Generate school ID
+        school_id = generate_school_id(name)
 
         # Insert data into the schools table (without the verification code)
         query = """
