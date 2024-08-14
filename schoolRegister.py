@@ -1,16 +1,10 @@
 from flask import Flask, request, jsonify
 import mysql.connector
 from werkzeug.security import generate_password_hash
-import random
-import requests
-import base64
 from flask_cors import CORS
-
-
 
 app = Flask(__name__)
 CORS(app)
-
 
 # Database configuration
 db_config = {
@@ -19,12 +13,6 @@ db_config = {
     'password': 'Basic@1998',
     'database': 'u652725315_dialyfees'
 }
-
-# # Hubtel API Configuration
-# HUBTEL_CLIENT_ID = 'uppxidtz'
-# HUBTEL_CLIENT_SECRET = 'khhmovbe'
-# HUBTEL_FROM = 'KEMPSHOT'  # Ensure this is 11 characters or less and approved by Hubtel
-# HUBTEL_API_URL = 'https://smsc.hubtel.com/v1/messages/send'
 
 ## Function to generate school_id
 def generate_school_id(school_name):
@@ -57,31 +45,6 @@ def generate_school_id(school_name):
     return f"{initials}-{formatted_number}"
 
 
-# # Function to generate a random 6-digit verification code
-# def generate_verification_code():
-#     return str(random.randint(100000, 999999))
-
-# # Function to send SMS via Hubtel
-# def send_sms(contact, verification_code):
-#     # Prepare the basic auth header
-#     auth_credentials = f"{HUBTEL_CLIENT_ID}:{HUBTEL_CLIENT_SECRET}"
-#     auth_header = base64.b64encode(auth_credentials.encode()).decode()
-#
-#     # Prepare the request headers and body
-#     headers = {
-#         'Authorization': f'Basic {auth_header}',
-#         'Content-Type': 'application/json'
-#     }
-#     payload = {
-#         "from": HUBTEL_FROM,
-#         "to": contact,
-#         "content": f'Your verification code is {verification_code}'
-#     }
-#
-#     # Send the request
-#     response = requests.post(HUBTEL_API_URL, json=payload, headers=headers)
-#     return response.status_code, response.json()
-
 @app.route('/add_school', methods=['POST'])
 def add_school():
     data = request.json
@@ -102,29 +65,23 @@ def add_school():
     # Hash the password for security
     hashed_password = generate_password_hash(password)
 
-    # # Generate school ID and verification code
-    # school_id = generate_school_id(name)
-    # verification_code = generate_verification_code()
+    # Generate school ID
+    school_id = generate_school_id(name)
 
     try:
         # Connect to the database
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor()
 
-        # Insert data into the schools table, including the verification code
+        # Insert data into the schools table (without the verification code)
         query = """
-        INSERT INTO schools (school_id, name, region, district, town, gps, contact, email, password, authentication)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s,%s, %s)
+        INSERT INTO schools (school_id, name, region, district, town, gps, contact, email, password)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        cursor.execute(query, (school_id, name, region, district, town, gps, contact, email, hashed_password, verification_code))
+        cursor.execute(query, (school_id, name, region, district, town, gps, contact, email, hashed_password))
         conn.commit()
 
-        # Send the verification code via SMS
-        status_code, response_json = send_sms(contact, verification_code)
-        if status_code == 200 or status_code == 201:
-            return jsonify({"message": "School added successfully", "school_id": school_id}), 201
-        else:
-            return jsonify({"error": f"Failed to send SMS: {response_json}"}), 500
+        return jsonify({"message": "School added successfully", "school_id": school_id}), 201
 
     except mysql.connector.Error as err:
         return jsonify({"error": str(err)}), 500
