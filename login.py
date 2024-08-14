@@ -1,17 +1,19 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 import mysql.connector
-from mysql.connector import Error
+from werkzeug.security import check_password_hash
 import jwt
 import datetime
+from flask_cors import CORS
+
+
 
 app = Flask(__name__)
 CORS(app)
 
-# Secret key for encoding the JWT token
-app.config['SECRET_KEY'] = 'your_secret_key'
+# Secret key for encoding the JWT
+app.config['SECRET_KEY'] = 'your_secret_key_here'
 
-# MySQL database configuration
+# Database connection details
 db_config = {
     'host': 'srv1241.hstgr.io',
     'user': 'u652725315_dailyfeesuser',
@@ -19,42 +21,59 @@ db_config = {
     'database': 'u652725315_dialyfees'
 }
 
-# Endpoint to authenticate user
-@app.route('/authenticate', methods=['POST'])
-def authenticate_user():
+
+# Function to generate JWT token
+def generate_token(user):
+    token = jwt.encode({
+        'school_id': user['school_id'],
+        'name': user['name'],
+        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1)  # Token expires in 1 hour
+    }, app.config['SECRET_KEY'], algorithm='HS256')
+
+    return token
+
+
+# Login API route
+@app.route('/login', methods=['POST'])
+def login():
     data = request.json
-    username = data.get('username')
+    email = data.get('email')
     password = data.get('password')
 
-    if not username or not password:
-        return jsonify({"error": "Username and password are required"}), 400
+    if not email or not password:
+        return jsonify({'message': 'Email and password are required'}), 400
 
     try:
-        connection = mysql.connector.connect(**db_config)
-
-        if connection.is_connected():
-            cursor = connection.cursor(dictionary=True)
-            query = "SELECT username, role FROM user WHERE username = %s AND password = %s"
-            cursor.execute(query, (username, password))
+        # Connect to the database
+        conn = mysql.connector.connect(**db_config)
+        with conn.cursor(dictionary=True) as cursor:
+            # Query to find the user by email
+            query = "SELECT school_id, name, password FROM schools WHERE email = %s"
+            cursor.execute(query, (email,))
             user = cursor.fetchone()
 
-            if user:
-                # Generate JWT token
-                token = jwt.encode({
-                    'username': user['username'],
-                    'role': user['role'],
-                    'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24)  # Token expiration time
-                }, app.config['SECRET_KEY'], algorithm='HS256')
-
-                return jsonify({"username": user['username'], "role": user['role'], "token": token})
+            if user and check_password_hash(user['password'], password):
+                # Authentication successful
+                token = generate_token(user)
+                return jsonify({
+                    'message': 'Login successful',
+                    'school_id': user['school_id'],
+                    'name': user['name'],
+                    'token': token
+                }), 200
             else:
-                return jsonify({"error": "Invalid username or password"}), 401
-    except Error as e:
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if connection.is_connected():
-            cursor.close()
-            connection.close()
+                # Authentication failed
+                return jsonify({'message': 'Invalid email or password'}), 401
 
+    except mysql.connector.Error as err:
+        # Handle database connection errors
+        return jsonify({'message': 'Database connection failed', 'error': str(err)}), 500
+
+    finally:
+        if conn:
+            conn.close()
+
+
+# Run the Flask app
 if __name__ == '__main__':
     app.run(debug=True)

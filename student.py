@@ -1,8 +1,13 @@
 from flask import Flask, request, jsonify
 import mysql.connector
 from mysql.connector import Error
+from flask_cors import CORS
+
+
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
+
 
 # MySQL database configuration
 db_config = {
@@ -21,16 +26,21 @@ def get_db_connection():
         print(f"Database connection error: {e}")
         return None
 
-def generate_student_id():
+def generate_student_id(school_id):
     try:
         connection = get_db_connection()
         if connection:
             cursor = connection.cursor()
-            query = "SELECT MAX(CAST(SUBSTRING(stu_id, 5) AS UNSIGNED)) FROM student WHERE stu_id LIKE 'KGA-%'"
-            cursor.execute(query)
+            # Adjust query to find the max number for the given school_id
+            query = """
+                SELECT MAX(CAST(SUBSTRING(stu_id, LENGTH(%s) + 2) AS UNSIGNED))
+                FROM student
+                WHERE stu_id LIKE %s
+            """
+            cursor.execute(query, (school_id, f"{school_id}-%"))
             result = cursor.fetchone()
             max_id = result[0] if result[0] else 0
-            new_id = f'KGA-{max_id + 1:03d}'
+            new_id = f'{school_id}-{max_id + 1:03d}'
             cursor.close()
             connection.close()
             return new_id
@@ -44,11 +54,12 @@ def add_student():
     name = data.get('Name')
     student_class = data.get('class')
     gender = data.get('gender')
+    school_id = data.get('school_id')  # Get school_id from request
 
-    if not name or not student_class or not gender:
-        return jsonify({"error": "Name, class, and gender are required"}), 400
+    if not name or not student_class or not gender or not school_id:
+        return jsonify({"error": "Name, class, gender, and school_id are required"}), 400
 
-    stu_id = generate_student_id()
+    stu_id = generate_student_id(school_id)
     if not stu_id:
         return jsonify({"error": "Failed to generate student ID"}), 500
 

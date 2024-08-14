@@ -58,38 +58,44 @@ def add_fee():
                     continue
 
                 student_id = student['stu_id']
+                print(f"Retrieved student_id: {student_id}")  # Debugging line
 
                 # Insert new data
                 insert_query = """
                     INSERT INTO feeding_fees (student_id, name, class, amount, status)
                     VALUES (%s, %s, %s, %s, %s)
                 """
-                cursor.execute(insert_query, (student_id, name, student_class, amount, status))
-                connection.commit()
+                try:
+                    cursor.execute(insert_query, (student_id, name, student_class, amount, status))
+                    connection.commit()
 
-                # Get the last inserted ID
-                last_id = cursor.lastrowid
+                    # Get the last inserted ID
+                    last_id = cursor.lastrowid
 
-                # Calculate the new balance for this student
-                select_query = """
-                    SELECT SUM(amount) as total_amount
-                    FROM feeding_fees
-                    WHERE student_id = %s
-                """
-                cursor.execute(select_query, (student_id,))
-                result = cursor.fetchone()
-                total_amount = result['total_amount'] if result else 0
+                    # Calculate the new balance for this student
+                    select_query = """
+                        SELECT SUM(amount) as total_amount
+                        FROM feeding_fees
+                        WHERE student_id = %s
+                    """
+                    cursor.execute(select_query, (student_id,))
+                    result = cursor.fetchone()
+                    total_amount = result['total_amount'] if result else 0
 
-                # Update the balance column for this row
-                update_query = """
-                    UPDATE feeding_fees
-                    SET balance = %s
-                    WHERE id = %s
-                """
-                cursor.execute(update_query, (total_amount, last_id))
-                connection.commit()
+                    # Update the balance column for this row
+                    update_query = """
+                        UPDATE feeding_fees
+                        SET balance = %s
+                        WHERE id = %s
+                    """
+                    cursor.execute(update_query, (total_amount, last_id))
+                    connection.commit()
 
-                responses.append({"message": f"Fee added and balance updated successfully for {name}"})
+                    responses.append({"message": f"Fee added and balance updated successfully for {name}"})
+
+                except mysql.connector.Error as insert_err:
+                    print(f"Insert error: {insert_err}")  # Debugging line
+                    responses.append({"error": str(insert_err)})
 
     except Error as e:
         return jsonify({"error": str(e)}), 500

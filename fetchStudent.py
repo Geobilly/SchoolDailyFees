@@ -19,17 +19,24 @@ db_config = {
 def encode_image(image_data):
     return base64.b64encode(image_data).decode('utf-8')
 
-# Endpoint to fetch student data from the student table
-@app.route('/students', methods=['GET'])
-def get_students():
+# Endpoint to fetch student data filtered by school_id
+@app.route('/students/<string:school_id>', methods=['GET'])
+def get_students(school_id):
     try:
         connection = mysql.connector.connect(**db_config)
         if connection.is_connected():
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT * FROM student")
+            # SQL query to match stu_id starting with the provided school_id
+            query = "SELECT * FROM student WHERE stu_id LIKE %s"
+            like_pattern = f'{school_id}%'  # Create a pattern to match stu_id
+            cursor.execute(query, (like_pattern,))
             students = cursor.fetchall()
 
-            # Encode ProfilePicture as base64 string
+            # Debugging: Print the fetched students
+            print(f"Query executed: {query} with pattern: {like_pattern}")
+            print(f"Students fetched: {students}")
+
+            # Encode ProfilePicture as base64 string if needed
             for student in students:
                 if student['ProfilePicture']:
                     student['ProfilePicture'] = encode_image(student['ProfilePicture'])
@@ -39,12 +46,15 @@ def get_students():
             return jsonify(students), 200
 
     except Error as e:
+        print(f"Error: {str(e)}")  # Debugging statement
         return jsonify({"error": str(e)}), 500
 
     finally:
         if connection.is_connected():
             cursor.close()
             connection.close()
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)

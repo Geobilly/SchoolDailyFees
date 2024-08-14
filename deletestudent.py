@@ -5,12 +5,14 @@ from mysql.connector import Error
 app = Flask(__name__)
 
 # MySQL database configuration
+# MySQL database configuration
 db_config = {
     'host': 'srv1241.hstgr.io',
     'user': 'u652725315_dailyfeesuser',
     'password': 'Basic@1998',
-    'database': 'u652725315_dialyfees'
+    'database': 'u652725315_dialyfees'  # Make sure the database name is correct
 }
+
 
 def get_db_connection():
     try:
