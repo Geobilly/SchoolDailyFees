@@ -1,8 +1,11 @@
 from flask import Flask, request, jsonify
 import mysql.connector
 from datetime import datetime
+from flask_cors import CORS
+
 
 app = Flask(__name__)
+CORS(app)
 
 # Database connection details
 db_config = {
@@ -17,8 +20,8 @@ def get_db_connection():
     return mysql.connector.connect(**db_config)
 
 
-@app.route('/fetch-financial', methods=['POST'])
-def fetch_financial():
+@app.route('/fetch-financial/<school_id>', methods=['POST'])
+def fetch_financial(school_id):
     try:
         data = request.json
         date = data['date']
@@ -26,8 +29,12 @@ def fetch_financial():
         connection = get_db_connection()
         cursor = connection.cursor(dictionary=True)
 
-        # Fetch all student names and classes
-        cursor.execute("SELECT Name, class FROM student")
+        # Fetch all student names and classes for the given school_id
+        cursor.execute("""
+            SELECT Name, class
+            FROM student
+            WHERE stu_id LIKE %s
+        """, (f"{school_id}-%",))
         student_data = cursor.fetchall()
 
         # Create a dictionary to map students to their classes
@@ -37,8 +44,8 @@ def fetch_financial():
         cursor.execute("""
             SELECT name, class, amount
             FROM feeding_fees
-            WHERE DATE(created_at) = %s AND status = 'debit'
-        """, (date,))
+            WHERE DATE(created_at) = %s AND status = 'debit' AND student_id LIKE %s
+        """, (date, f"{school_id}-%"))
         debited_records = cursor.fetchall()
 
         # Initialize dict to store debited amounts per student
@@ -68,8 +75,9 @@ def fetch_financial():
         cursor.execute("""
             SELECT class, COUNT(*) as total_students
             FROM student
+            WHERE stu_id LIKE %s
             GROUP BY class
-        """)
+        """, (f"{school_id}-%",))
         student_summary = cursor.fetchall()
 
         # Fetch feeding fee data (corrected table name)
@@ -79,9 +87,9 @@ def fetch_financial():
                    SUM(CASE WHEN status = 'debit' THEN amount ELSE 0 END) as total_debit,
                    COUNT(CASE WHEN status = 'debit' THEN 1 ELSE NULL END) as count_debit
             FROM feeding_fees
-            WHERE DATE(created_at) = %s
+            WHERE DATE(created_at) = %s AND student_id LIKE %s
             GROUP BY class
-        """, (date,))
+        """, (date, f"{school_id}-%"))
         feeding_summary = cursor.fetchall()
 
         # Combine student_summary with feeding_summary based on class
