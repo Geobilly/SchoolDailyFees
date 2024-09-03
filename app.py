@@ -14,6 +14,9 @@ from FetchDeletedTransactions import get_deleted_transactions
 from DeleteTransaction import delete_transaction
 from addImage import upload_image
 from schoolRegister import add_school
+from DashboardData import fetch_feeding_fees
+
+
 
 
 
@@ -38,6 +41,9 @@ app.route('/deleted_transactions/<school_id>', methods=['GET'])(get_deleted_tran
 app.route('/delete_transaction', methods=['POST'])(delete_transaction)
 app.route('/upload_image', methods=['POST'])(upload_image)
 app.route('/add_school', methods=['POST'])(add_school)
+app.route('/fetch-feeding-fees/<school_id>', methods=['GET'])(fetch_feeding_fees)
+
+
 
 
 
