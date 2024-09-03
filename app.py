@@ -15,6 +15,19 @@ from DeleteTransaction import delete_transaction
 from addImage import upload_image
 from schoolRegister import add_school
 from DashboardData import fetch_feeding_fees
+from addTerminal import insert_terminal
+from DeleteTerminal import delete_terminal
+from EditProfile import edit_profile
+from EditStudent import edit_student
+from EditTerminal import edit_terminal
+from fetchTerminal import get_terminal
+
+
+
+
+
+
+
 
 
 
@@ -42,6 +55,22 @@ app.route('/delete_transaction', methods=['POST'])(delete_transaction)
 app.route('/upload_image', methods=['POST'])(upload_image)
 app.route('/add_school', methods=['POST'])(add_school)
 app.route('/fetch-feeding-fees/<school_id>', methods=['GET'])(fetch_feeding_fees)
+app.route('/insert', methods=['POST'])(insert_terminal)
+app.route('/delete/<int:id>', methods=['DELETE'])(delete_terminal)
+app.route('/edit_profile/<school_id>', methods=['PUT'])(edit_profile)
+app.route('/edit_student/<student_id>', methods=['PUT'])(edit_student)
+app.route('/edit/<int:id>', methods=['PUT'])(edit_terminal)
+app.route('/get_terminal/<school_id>', methods=['GET'])(get_terminal)
+
+
+
+
+
+
+
+
+
+
 
 
 

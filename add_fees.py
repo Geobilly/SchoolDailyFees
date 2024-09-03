@@ -35,9 +35,11 @@ def add_fee():
                 student_class = entry.get('class')
                 amount = entry.get('amount')
                 status = entry.get('status')
+                terminal_id = entry.get('terminal_id')
+
 
                 if not name or not student_class or not amount or not status:
-                    responses.append({"error": "Name, class, amount, and status are required"})
+                    responses.append({"error": "Name, class, amount, terminal_id  and status are required"})
                     continue
 
                 if status != 'credit':
@@ -62,11 +64,11 @@ def add_fee():
 
                 # Insert new data
                 insert_query = """
-                    INSERT INTO feeding_fees (student_id, name, class, amount, status)
-                    VALUES (%s, %s, %s, %s, %s)
+                    INSERT INTO feeding_fees (student_id, name, class, amount, status, terminal_id)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                 """
                 try:
-                    cursor.execute(insert_query, (student_id, name, student_class, amount, status))
+                    cursor.execute(insert_query, (student_id, name, student_class, amount, status, terminal_id))
                     connection.commit()
 
                     # Get the last inserted ID
