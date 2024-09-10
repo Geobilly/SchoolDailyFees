@@ -21,6 +21,16 @@ from EditProfile import edit_profile
 from EditStudent import edit_student
 from EditTerminal import edit_terminal
 from fetchTerminal import get_terminal
+from FetchSchoolData import get_school
+from enternewpassword import reset_password
+from restpassword import send_code
+from add_fees import webhook
+
+
+
+
+
+
 
 
 
@@ -61,6 +71,14 @@ app.route('/edit_profile/<school_id>', methods=['PUT'])(edit_profile)
 app.route('/edit_student/<student_id>', methods=['PUT'])(edit_student)
 app.route('/edit/<int:id>', methods=['PUT'])(edit_terminal)
 app.route('/get_terminal/<school_id>', methods=['GET'])(get_terminal)
+app.route('/get_school/<string:school_id>', methods=['GET'])(get_school)
+app.route('/reset_password', methods=['POST'])(reset_password)
+app.route('/send_code', methods=['POST'])(send_code)
+app.route('/webhook', methods=['POST'])(webhook)
+
+
+
+
 
 
 

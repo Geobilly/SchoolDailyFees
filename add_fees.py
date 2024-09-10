@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import mysql.connector
 from mysql.connector import Error
 from flask_cors import CORS
+import requests
 
 app = Flask(__name__)
 CORS(app)
@@ -14,100 +15,141 @@ db_config = {
     'database': 'u652725315_dialyfees'
 }
 
-# Endpoint to insert data into the feeding_fees table
+# Paystack configuration
+PAYSTACK_SECRET_KEY = 'sk_live_59bdb4f24d046739292562d30eb55abce7a89b7e'
+PAYSTACK_INITIALIZE_URL = 'https://api.paystack.co/transaction/initialize'
+PAYSTACK_VERIFY_URL = 'https://api.paystack.co/transaction/verify'
+
+
+# Helper function to initialize Paystack transaction
+def initialize_transaction(amount, mobile_money):
+    headers = {
+        'Authorization': f'Bearer {PAYSTACK_SECRET_KEY}',
+        'Content-Type': 'application/json',
+    }
+    payload = {
+        'amount': int(amount * 100),  # Paystack expects amount in kobo (for NGN) or pesewas (for GHS)
+        'email': 'georgeabban79@gmail.com',  # Replace with actual user email
+        'currency': 'GHS',
+        'phone': mobile_money  # This is optional but useful for verification
+    }
+    response = requests.post(PAYSTACK_INITIALIZE_URL, headers=headers, json=payload)
+    print(f"Initialize Transaction Response: {response.json()}")  # Log for debugging
+    if response.status_code == 200:
+        return response.json()
+    return None
+
+
+# Helper function to verify Paystack transaction
+def verify_transaction(reference):
+    headers = {
+        'Authorization': f'Bearer {PAYSTACK_SECRET_KEY}',
+    }
+    response = requests.get(f'{PAYSTACK_VERIFY_URL}/{reference}', headers=headers)
+    print(f"Verify Transaction Response: {response.json()}")  # Log for debugging
+    if response.status_code == 200:
+        return response.json()
+    return None
+
+
+# Endpoint to generate payment URL
 @app.route('/add_fee', methods=['POST'])
 def add_fee():
     data = request.json
-
     if not isinstance(data, list):
         data = [data]
 
     responses = []
 
-    try:
-        connection = mysql.connector.connect(**db_config)
+    for entry in data:
+        # Extract necessary fields
+        name = entry.get('name')
+        student_class = entry.get('class')
+        amount = entry.get('amount')
+        additional_fees = entry.get('additional_fees', 0)
+        status = entry.get('status')
+        terminal_id = entry.get('terminal_id')
+        terminal_name = entry.get('terminal_name')
+        terminal_price = entry.get('terminal_price')
+        mobile_money = entry.get('mobile_money')
 
-        if connection.is_connected():
-            cursor = connection.cursor(dictionary=True)
+        # Validate required fields
+        if not all([name, student_class, amount, status, terminal_id, terminal_name, terminal_price, mobile_money]):
+            responses.append({"error": "All fields are required"})
+            continue
 
-            for entry in data:
-                name = entry.get('name')
-                student_class = entry.get('class')
-                amount = entry.get('amount')
-                status = entry.get('status')
-                terminal_id = entry.get('terminal_id')
+        if status != 'credit':
+            responses.append({"error": "Invalid status. Must be 'credit'"})
+            continue
+
+        # Initiate Paystack transaction
+        transaction = initialize_transaction(amount + additional_fees, mobile_money)
+        if not transaction or not transaction.get('status'):
+            responses.append({"error": "Failed to initialize Paystack transaction"})
+            continue
+
+        # Return the payment URL for the front end
+        authorization_url = transaction['data']['authorization_url']
+        responses.append({"redirect_url": authorization_url, "reference": transaction['data']['reference']})
+
+    return jsonify(responses), 200
 
 
-                if not name or not student_class or not amount or not status:
-                    responses.append({"error": "Name, class, amount, terminal_id  and status are required"})
-                    continue
+# Webhook to handle Paystack payment updates
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    payload = request.json
+    event = payload.get('event')
 
-                if status != 'credit':
-                    responses.append({"error": "Invalid status. Must be 'credit'"})
-                    continue
+    print("Webhook received:", payload)  # Log the received payload for debugging
 
-                # Retrieve student_id from the student table
-                select_student_query = """
-                    SELECT stu_id
-                    FROM student
-                    WHERE name = %s AND class = %s
-                """
-                cursor.execute(select_student_query, (name, student_class))
-                student = cursor.fetchone()
+    if event in ['charge.success', 'charge.failed']:
+        reference = payload['data']['reference']
+        status = payload['data']['status']
 
-                if not student:
-                    responses.append({"error": f"Student not found for {name} in class {student_class}"})
-                    continue
+        try:
+            connection = mysql.connector.connect(**db_config)
+            cursor = connection.cursor()
 
-                student_id = student['stu_id']
-                print(f"Retrieved student_id: {student_id}")  # Debugging line
+            # Query to fetch student details associated with this reference
+            cursor.execute("SELECT * FROM students WHERE reference = %s", (reference,))
+            student_data = cursor.fetchone()
 
-                # Insert new data
-                insert_query = """
-                    INSERT INTO feeding_fees (student_id, name, class, amount, status, terminal_id)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """
-                try:
-                    cursor.execute(insert_query, (student_id, name, student_class, amount, status, terminal_id))
-                    connection.commit()
+            if student_data:
+                student_id = student_data[0]
+                name = student_data[1]  # Assuming these indices are correct
+                student_class = student_data[2]
+                amount = student_data[3]
+                additional_fees = student_data[4]
+                terminal_id = student_data[5]
+                terminal_name = student_data[6]
+                terminal_price = student_data[7]
 
-                    # Get the last inserted ID
-                    last_id = cursor.lastrowid
-
-                    # Calculate the new balance for this student
-                    select_query = """
-                        SELECT SUM(amount) as total_amount
-                        FROM feeding_fees
-                        WHERE student_id = %s
+                if event == 'charge.success':
+                    # Handle successful payment
+                    insert_query = """
+                        INSERT INTO feeding_fees 
+                        (student_id, name, class, amount, additional_fees, status, terminal_id, terminal_name, terminal_price) 
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """
-                    cursor.execute(select_query, (student_id,))
-                    result = cursor.fetchone()
-                    total_amount = result['total_amount'] if result else 0
-
-                    # Update the balance column for this row
-                    update_query = """
-                        UPDATE feeding_fees
-                        SET balance = %s
-                        WHERE id = %s
-                    """
-                    cursor.execute(update_query, (total_amount, last_id))
+                    cursor.execute(insert_query, (
+                    student_id, name, student_class, amount, additional_fees, 'credit', terminal_id, terminal_name,
+                    terminal_price))
                     connection.commit()
+                    print("Payment recorded successfully")
 
-                    responses.append({"message": f"Fee added and balance updated successfully for {name}"})
+                elif event == 'charge.failed':
+                    print("Payment failed for reference:", reference)
+                    # Handle payment failure (optional)
 
-                except mysql.connector.Error as insert_err:
-                    print(f"Insert error: {insert_err}")  # Debugging line
-                    responses.append({"error": str(insert_err)})
+        except mysql.connector.Error as e:
+            print(f"Database error: {e}")
 
-    except Error as e:
-        return jsonify({"error": str(e)}), 500
-
-    finally:
-        if connection.is_connected():
+        finally:
             cursor.close()
             connection.close()
 
-    return jsonify(responses), 201
+    return jsonify({'status': 'success'}), 200
 
 if __name__ == '__main__':
     app.run(debug=True)
