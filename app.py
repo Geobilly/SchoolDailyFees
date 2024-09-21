@@ -24,7 +24,9 @@ from fetchTerminal import get_terminal
 from FetchSchoolData import get_school
 from enternewpassword import reset_password
 from restpassword import send_code
-from add_fees import webhook
+# from add_fees import webhook
+from fetchstudentonly import get_students_only
+
 
 
 
@@ -74,7 +76,11 @@ app.route('/get_terminal/<school_id>', methods=['GET'])(get_terminal)
 app.route('/get_school/<string:school_id>', methods=['GET'])(get_school)
 app.route('/reset_password', methods=['POST'])(reset_password)
 app.route('/send_code', methods=['POST'])(send_code)
-app.route('/webhook', methods=['POST'])(webhook)
+# app.route('/webhook', methods=['POST'])(webhook)
+app.route('/students_only/<string:school_id>', methods=['GET'])(get_students_only)
+
+
+
 
 
 

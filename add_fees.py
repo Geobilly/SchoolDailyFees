@@ -96,6 +96,7 @@ def add_fee():
 
 
 # Webhook to handle Paystack payment updates
+# Webhook to handle Paystack payment updates
 @app.route('/webhook', methods=['POST'])
 def webhook():
     payload = request.json
@@ -103,9 +104,10 @@ def webhook():
 
     print("Webhook received:", payload)  # Log the received payload for debugging
 
-    if event in ['charge.success', 'charge.failed']:
+    if event == 'charge.success':
         reference = payload['data']['reference']
         status = payload['data']['status']
+        amount_paid = payload['data']['amount'] / 100  # Paystack amount is in kobo/pesewa
 
         try:
             connection = mysql.connector.connect(**db_config)
@@ -119,28 +121,20 @@ def webhook():
                 student_id = student_data[0]
                 name = student_data[1]  # Assuming these indices are correct
                 student_class = student_data[2]
-                amount = student_data[3]
-                additional_fees = student_data[4]
                 terminal_id = student_data[5]
                 terminal_name = student_data[6]
                 terminal_price = student_data[7]
 
-                if event == 'charge.success':
-                    # Handle successful payment
-                    insert_query = """
-                        INSERT INTO feeding_fees 
-                        (student_id, name, class, amount, additional_fees, status, terminal_id, terminal_name, terminal_price) 
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """
-                    cursor.execute(insert_query, (
-                    student_id, name, student_class, amount, additional_fees, 'credit', terminal_id, terminal_name,
-                    terminal_price))
-                    connection.commit()
-                    print("Payment recorded successfully")
-
-                elif event == 'charge.failed':
-                    print("Payment failed for reference:", reference)
-                    # Handle payment failure (optional)
+                # Handle successful payment
+                insert_query = """
+                    INSERT INTO feeding_fees 
+                    (student_id, name, class, amount, status, terminal_id, terminal_name, terminal_price) 
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(insert_query, (
+                    student_id, name, student_class, amount_paid, 'credit', terminal_id, terminal_name, terminal_price))
+                connection.commit()
+                print("Payment recorded successfully")
 
         except mysql.connector.Error as e:
             print(f"Database error: {e}")
@@ -149,7 +143,13 @@ def webhook():
             cursor.close()
             connection.close()
 
+    elif event == 'charge.failed':
+        print("Payment failed for reference:", reference)
+        # Handle payment failure (optional)
+
     return jsonify({'status': 'success'}), 200
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
