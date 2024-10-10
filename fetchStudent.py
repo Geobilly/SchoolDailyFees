@@ -27,7 +27,7 @@ def get_students(school_id):
         if connection.is_connected():
             cursor = connection.cursor(dictionary=True)
             # SQL query to match stu_id starting with the provided school_id
-            query = "SELECT stu_id, Name, gender, class, ProfilePicture FROM student WHERE stu_id LIKE %s LIMIT 100"
+            query = "SELECT stu_id, Name, gender, class, ProfilePicture FROM student WHERE stu_id LIKE %s"
             like_pattern = f'{school_id}%'  # Create a pattern to match stu_id
             cursor.execute(query, (like_pattern,))
             students = cursor.fetchall()

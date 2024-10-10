@@ -2,7 +2,7 @@ from flask import Flask
 from flask_cors import CORS
 
 # Import route functions from other modules
-from debit_fees import add_fixed_debit
+# from debit_fees import add_fixed_debit
 from login import login
 from student import add_student
 from add_fees import add_fee
@@ -26,7 +26,8 @@ from enternewpassword import reset_password
 from restpassword import send_code
 # from add_fees import webhook
 from fetchstudentonly import get_students_only
-
+from cardlist import get_school_data
+from processfee import process_fee
 
 
 
@@ -54,7 +55,7 @@ app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
 # Registering routes with their respective functions
-app.route('/add_fixed_debit', methods=['POST'])(add_fixed_debit)
+# app.route('/add_fixed_debit', methods=['POST'])(add_fixed_debit)
 app.route('/login', methods=['POST'])(login)
 app.route('/add_student', methods=['POST'])(add_student)
 app.route('/add_fee', methods=['POST'])(add_fee)
@@ -78,6 +79,11 @@ app.route('/reset_password', methods=['POST'])(reset_password)
 app.route('/send_code', methods=['POST'])(send_code)
 # app.route('/webhook', methods=['POST'])(webhook)
 app.route('/students_only/<string:school_id>', methods=['GET'])(get_students_only)
+app.route('/school/<school_id>', methods=['GET'])(get_school_data)
+app.route('/process_fee', methods=['POST'])(process_fee)
+
+
+
 
 
 

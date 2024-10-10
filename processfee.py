@@ -1,8 +1,11 @@
 from flask import Flask, request, jsonify
 import mysql.connector
 from datetime import datetime
+from flask_cors import CORS
+
 
 app = Flask(__name__)
+CORS(app)
 
 # MySQL database configuration
 db_config = {
@@ -19,11 +22,12 @@ def get_db_connection():
 
 
 # API route to handle the feeding fees process
-@app.route('/add_fixed_debit', methods=['POST'])
+@app.route('/process_fee', methods=['POST'])
 def process_fee():
     # Get data from request
     data = request.json
     name = data['name']
+    terminal_name = data['terminal_name']  # Terminal name provided by user
     terminal_price = float(data['terminal_price'])  # Terminal price provided by user
 
     try:
@@ -41,18 +45,18 @@ def process_fee():
 
         student_id = student_record['stu_id']
 
-        # Step 2: Get the latest row for the specified name (credit or debit)
+        # Step 2: Get the latest row for the specified name and terminal name (credit or debit)
         query = """
             SELECT * FROM feeding_fees 
-            WHERE name = %s 
+            WHERE name = %s AND terminal_name = %s
             ORDER BY created_at DESC LIMIT 1
         """
-        cursor.execute(query, (name,))
+        cursor.execute(query, (name, terminal_name))
         latest_record = cursor.fetchone()
 
         # If no record is found
         if not latest_record:
-            return jsonify({"error": "No record found for this student"}), 404
+            return jsonify({"error": "No record found for this student and terminal"}), 404
 
         # Get the current balance from the latest row
         current_balance = float(latest_record['balance'])
@@ -79,7 +83,7 @@ def process_fee():
             datetime.now(),  # Last insert
             new_balance,  # Updated balance
             student_id,  # Student ID from 'student' table
-            data['terminal_name'],
+            data['terminal_name'],  # Terminal name from request
             data['terminal_price']
         ))
 
