@@ -33,6 +33,7 @@ from UserLogin import userrlogin
 from AddUserRole import add_user
 from StudentBalance import get_balance
 from fetchonlystudentclass import get_students_only
+from Attendance import add_attendance
 
 
 
@@ -83,6 +84,8 @@ app.route('/userlogin', methods=['POST'])(userrlogin)
 app.route('/add_user', methods=['POST'])(add_user)
 app.route('/get_balance/<school_id>', methods=['POST'])(get_balance)
 app.route('/students_only/<string:school_id>/<string:student_class>', methods=['GET'])(get_students_only)
+app.route('/attendance', methods=['POST'])(add_attendance)
+
 
 
 
