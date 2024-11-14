@@ -28,14 +28,11 @@ from restpassword import send_code
 from fetchstudentonly import get_students_only
 from cardlist import get_school_data
 from processfee import process_fee
-
-
-
-
-
-
-
-
+from Staff import add_staff
+from UserLogin import userrlogin
+from AddUserRole import add_user
+from StudentBalance import get_balance
+from fetchonlystudentclass import get_students_only
 
 
 
@@ -81,6 +78,15 @@ app.route('/send_code', methods=['POST'])(send_code)
 app.route('/students_only/<string:school_id>', methods=['GET'])(get_students_only)
 app.route('/school/<school_id>', methods=['GET'])(get_school_data)
 app.route('/process_fee', methods=['POST'])(process_fee)
+app.route('/staff', methods=['POST'])(add_staff)
+app.route('/userlogin', methods=['POST'])(userrlogin)
+app.route('/add_user', methods=['POST'])(add_user)
+app.route('/get_balance/<school_id>', methods=['POST'])(get_balance)
+app.route('/students_only/<string:school_id>/<string:student_class>', methods=['GET'])(get_students_only)
+
+
+
+
 
 
 

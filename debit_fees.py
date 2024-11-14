@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 import mysql.connector
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
@@ -18,8 +18,28 @@ def get_db_connection():
     return mysql.connector.connect(**db_config)
 
 
+# Function to check if a student has been debited within the last 24 hours
+def check_debit_within_24hrs(name):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Define the query to check for debits within the last 24 hours
+    query = """
+        SELECT * FROM feeding_fees 
+        WHERE name = %s AND status = 'debit' AND created_at >= NOW() - INTERVAL 1 DAY
+        ORDER BY created_at DESC LIMIT 1
+    """
+    cursor.execute(query, (name,))
+    recent_record = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    return recent_record is not None
+
+
 # API route to handle the feeding fees process
-@app.route('/add_fixed_debit', methods=['POST'])
+@app.route('/process_fee', methods=['POST'])
 def process_fee():
     # Get data from request
     data = request.json
@@ -41,7 +61,11 @@ def process_fee():
 
         student_id = student_record['stu_id']
 
-        # Step 2: Get the latest row for the specified name (credit or debit)
+        # Step 2: Check if the student has been debited within the last 24 hours
+        if check_debit_within_24hrs(name):
+            return jsonify({"message": "Student Debited within 24 hours"}), 400
+
+        # Step 3: Get the latest row for the specified name (credit or debit)
         query = """
             SELECT * FROM feeding_fees 
             WHERE name = %s 
@@ -57,14 +81,14 @@ def process_fee():
         # Get the current balance from the latest row
         current_balance = float(latest_record['balance'])
 
-        # Step 3: Check if the balance is sufficient compared to the terminal price
+        # Step 4: Check if the balance is sufficient compared to the terminal price
         if current_balance < terminal_price:
             return jsonify({"message": "Low Balance"}), 400
 
-        # Step 4: Deduct the terminal price from the current balance
+        # Step 5: Deduct the terminal price from the current balance
         new_balance = current_balance - terminal_price
 
-        # Step 5: Insert a new 'debit' record with the updated balance
+        # Step 6: Insert a new 'debit' record with the updated balance
         insert_query = """
             INSERT INTO feeding_fees (name, class, amount, created_at, status, terminal_id, last_insert, balance, student_id, terminal_name, terminal_price)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)

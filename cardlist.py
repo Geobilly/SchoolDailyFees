@@ -2,7 +2,6 @@ from flask import Flask, jsonify
 import mysql.connector
 from flask_cors import CORS
 
-
 app = Flask(__name__)
 CORS(app)
 
@@ -45,11 +44,18 @@ def get_school_data(school_id):
         cursor.execute(fees_query, (school_id + '%',))
         fees_data = cursor.fetchone()
 
+        # Calculate total balance
+        total_credit = fees_data['total_credit'] or 0.0
+        total_debit = fees_data['total_debit'] or 0.0
+        total_balance = total_credit + total_debit
+
+
         response = {
             'school_id': school_id,
             'total_students': student_count,
-            'total_credit': fees_data['total_credit'] or 0.0,
-            'total_debit': fees_data['total_debit'] or 0.0
+            'total_credit': total_credit,
+            'total_debit': total_debit,
+            'total_balance': total_balance
         }
 
         return jsonify(response)
