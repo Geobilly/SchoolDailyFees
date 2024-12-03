@@ -39,16 +39,6 @@ from Attendance import add_attendance
 
 
 
-
-
-
-
-
-
-
-
-
-
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
